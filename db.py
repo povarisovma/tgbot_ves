@@ -20,6 +20,13 @@ def init_db():
                 date    TEXT    NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS deletions (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date    TEXT    NOT NULL
+            )
+        """)
         conn.commit()
 
 
@@ -61,6 +68,33 @@ def get_stats() -> dict:
         "total_records": total_records,
         "today_records": today_records,
     }
+
+
+def deletions_today(user_id: int) -> int:
+    today = datetime.now().strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM deletions WHERE user_id = ? AND date LIKE ?",
+            (user_id, f"{today}%"),
+        ).fetchone()
+    return row[0]
+
+
+def delete_last_weight(user_id: int) -> float | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, weight FROM weights WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        conn.execute("DELETE FROM weights WHERE id = ?", (row["id"],))
+        conn.execute(
+            "INSERT INTO deletions (user_id, date) VALUES (?, ?)",
+            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M")),
+        )
+        conn.commit()
+    return row["weight"]
 
 
 def get_history(user_id: int) -> list[sqlite3.Row]:

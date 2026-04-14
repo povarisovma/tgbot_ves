@@ -23,7 +23,10 @@ logging.basicConfig(
 )
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
-    [[KeyboardButton("📊 График"), KeyboardButton("📋 История")]],
+    [
+        [KeyboardButton("📊 График"), KeyboardButton("📋 История")],
+        [KeyboardButton("🗑 Удалить последнюю запись")],
+    ],
     resize_keyboard=True,
 )
 
@@ -66,6 +69,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_history(update, user_id)
         return
 
+    if text == "🗑 Удалить последнюю запись":
+        await delete_last(update, user_id)
+        return
+
     # пробуем распознать число
     try:
         weight = float(text.replace(",", "."))
@@ -90,6 +97,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.add_weight(user_id, weight)
     await update.message.reply_text(
         f"✅ Записал: *{weight:.1f} кг*",
+        parse_mode="Markdown",
+        reply_markup=MAIN_KEYBOARD,
+    )
+
+
+async def delete_last(update: Update, user_id: int):
+    if db.deletions_today(user_id) >= 3:
+        await update.message.reply_text(
+            "⛔️ Сегодня ты уже удалял записи 3 раза. Лимит исчерпан до завтра.",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
+    weight = db.delete_last_weight(user_id)
+    if weight is None:
+        await update.message.reply_text(
+            "Записей нет — нечего удалять.",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
+    remaining = 3 - db.deletions_today(user_id)
+    await update.message.reply_text(
+        f"🗑 Последняя запись удалена: *{weight:.1f} кг*\n"
+        f"Осталось удалений сегодня: *{remaining}*",
         parse_mode="Markdown",
         reply_markup=MAIN_KEYBOARD,
     )
