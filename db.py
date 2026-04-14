@@ -104,3 +104,14 @@ def get_history(user_id: int) -> list[sqlite3.Row]:
             (user_id,),
         ).fetchall()
     return rows
+
+
+def get_history_months(user_id: int, months: int) -> list[sqlite3.Row]:
+    from datetime import timedelta
+    since = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT weight, date FROM weights WHERE user_id = ? AND date >= ? ORDER BY id ASC",
+            (user_id, since),
+        ).fetchall()
+    return rows

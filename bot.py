@@ -24,8 +24,8 @@ logging.basicConfig(
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("📊 График"), KeyboardButton("📋 История")],
-        [KeyboardButton("🗑 Удалить последнюю запись")],
+        [KeyboardButton("📊 График"), KeyboardButton("📊 График за 2 месяца")],
+        [KeyboardButton("📋 История"), KeyboardButton("🗑 Удалить последнюю запись")],
     ],
     resize_keyboard=True,
 )
@@ -63,6 +63,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "📊 График":
         await send_chart(update, user_id)
+        return
+
+    if text == "📊 График за 2 месяца":
+        await send_chart(update, user_id, months=2)
         return
 
     if text == "📋 История":
@@ -143,10 +147,16 @@ async def send_history(update: Update, user_id: int):
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
-async def send_chart(update: Update, user_id: int):
-    rows = db.get_history(user_id)
+async def send_chart(update: Update, user_id: int, months: int = None):
+    if months:
+        rows = db.get_history_months(user_id, months)
+        caption = f"📊 Динамика веса за последние {months} месяца"
+    else:
+        rows = db.get_history(user_id)
+        caption = "📊 Динамика веса за всё время"
+
     if not rows:
-        await update.message.reply_text("Записей пока нет. Отправь своё первое взвешивание!")
+        await update.message.reply_text("Записей за этот период нет.")
         return
 
     if len(rows) < 2:
@@ -157,7 +167,7 @@ async def send_chart(update: Update, user_id: int):
 
     await update.message.reply_text("Строю график… ⏳")
     buf = build_chart(rows)
-    await update.message.reply_photo(photo=buf, caption="📊 Динамика твоего веса")
+    await update.message.reply_photo(photo=buf, caption=caption)
 
 
 def main():
