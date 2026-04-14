@@ -95,6 +95,20 @@ sudo systemctl start tgbot_ves
 sudo systemctl status tgbot_ves
 ```
 
+## Обновление бота
+
+Когда в репозитории появились новые изменения — выполни на сервере:
+
+```bash
+sudo -u vesbot git -C /opt/tgbot_ves pull && sudo systemctl restart tgbot_ves
+```
+
+Если добавились новые зависимости в `requirements.txt`:
+
+```bash
+sudo -u vesbot git -C /opt/tgbot_ves pull && sudo -u vesbot /opt/tgbot_ves/venv/bin/pip install -r /opt/tgbot_ves/requirements.txt && sudo systemctl restart tgbot_ves
+```
+
 ## Структура проекта
 
 ```
