@@ -24,7 +24,7 @@ logging.basicConfig(
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("📊 График"), KeyboardButton("📊 График за 2 месяца")],
+        [KeyboardButton("📊 График"), KeyboardButton("📊 График за 3 месяца")],
         [KeyboardButton("📋 История"), KeyboardButton("🗑 Удалить последнюю запись")],
     ],
     resize_keyboard=True,
@@ -65,8 +65,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_chart(update, user_id)
         return
 
-    if text == "📊 График за 2 месяца":
-        await send_chart(update, user_id, months=2)
+    if text == "📊 График за 3 месяца":
+        await send_chart(update, user_id, months=3)
         return
 
     if text == "📋 История":
@@ -150,7 +150,7 @@ async def send_history(update: Update, user_id: int):
 async def send_chart(update: Update, user_id: int, months: int = None):
     if months:
         rows = db.get_history_months(user_id, months)
-        caption = f"📊 Динамика веса за последние {months} месяца"
+        caption = f"📊 Динамика веса за последние {months} месяца(-ев)"
     else:
         rows = db.get_history(user_id)
         caption = "📊 Динамика веса за всё время"
