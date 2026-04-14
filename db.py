@@ -43,6 +43,26 @@ def add_weight(user_id: int, weight: float):
         conn.commit()
 
 
+def get_stats() -> dict:
+    today = datetime.now().strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        total_users = conn.execute(
+            "SELECT COUNT(DISTINCT user_id) FROM weights"
+        ).fetchone()[0]
+        total_records = conn.execute(
+            "SELECT COUNT(*) FROM weights"
+        ).fetchone()[0]
+        today_records = conn.execute(
+            "SELECT COUNT(*) FROM weights WHERE date LIKE ?",
+            (f"{today}%",),
+        ).fetchone()[0]
+    return {
+        "total_users": total_users,
+        "total_records": total_records,
+        "today_records": today_records,
+    }
+
+
 def get_history(user_id: int) -> list[sqlite3.Row]:
     with get_conn() as conn:
         rows = conn.execute(

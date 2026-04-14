@@ -15,6 +15,7 @@ from chart import build_chart
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -35,6 +36,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Я запишу его, и ты всегда сможешь посмотреть историю или график своих взвешиваний.",
         parse_mode="Markdown",
         reply_markup=MAIN_KEYBOARD,
+    )
+
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("У тебя нет доступа к этой команде.")
+        return
+
+    s = db.get_stats()
+    await update.message.reply_text(
+        f"📊 *Статистика бота*\n\n"
+        f"👥 Пользователей: *{s['total_users']}*\n"
+        f"📝 Всего записей: *{s['total_records']}*\n"
+        f"📅 Записей сегодня: *{s['today_records']}*",
+        parse_mode="Markdown",
     )
 
 
@@ -116,6 +132,7 @@ def main():
     db.init_db()
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
