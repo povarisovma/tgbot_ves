@@ -7,7 +7,14 @@ from datetime import datetime
 
 
 def build_chart(rows) -> io.BytesIO:
-    dates = [datetime.strptime(r["date"], "%Y-%m-%d %H:%M") for r in rows]
+    dates = []
+    for r in rows:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+            try:
+                dates.append(datetime.strptime(r["date"], fmt))
+                break
+            except ValueError:
+                continue
     weights = [r["weight"] for r in rows]
 
     fig, ax = plt.subplots(figsize=(10, 5))
