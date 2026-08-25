@@ -45,6 +45,13 @@ def init_db():
                 date      TEXT    NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pressure_deletions (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date    TEXT    NOT NULL
+            )
+        """)
         conn.commit()
 
 
@@ -74,17 +81,49 @@ def get_stats() -> dict:
         total_users = conn.execute(
             "SELECT COUNT(DISTINCT user_id) FROM weights"
         ).fetchone()[0]
-        total_records = conn.execute(
+        total_weight = conn.execute(
             "SELECT COUNT(*) FROM weights"
         ).fetchone()[0]
-        today_records = conn.execute(
+        today_weight = conn.execute(
             "SELECT COUNT(*) FROM weights WHERE date LIKE ?",
+            (f"{today}%",),
+        ).fetchone()[0]
+        total_weight_del = conn.execute(
+            "SELECT COUNT(*) FROM deletions"
+        ).fetchone()[0]
+        today_weight_del = conn.execute(
+            "SELECT COUNT(*) FROM deletions WHERE date LIKE ?",
+            (f"{today}%",),
+        ).fetchone()[0]
+        total_pressure = conn.execute(
+            "SELECT COUNT(*) FROM pressure"
+        ).fetchone()[0]
+        today_pressure_morning = conn.execute(
+            "SELECT COUNT(*) FROM pressure WHERE period = 'morning' AND date LIKE ?",
+            (f"{today}%",),
+        ).fetchone()[0]
+        today_pressure_evening = conn.execute(
+            "SELECT COUNT(*) FROM pressure WHERE period = 'evening' AND date LIKE ?",
+            (f"{today}%",),
+        ).fetchone()[0]
+        total_pressure_del = conn.execute(
+            "SELECT COUNT(*) FROM pressure_deletions"
+        ).fetchone()[0]
+        today_pressure_del = conn.execute(
+            "SELECT COUNT(*) FROM pressure_deletions WHERE date LIKE ?",
             (f"{today}%",),
         ).fetchone()[0]
     return {
         "total_users": total_users,
-        "total_records": total_records,
-        "today_records": today_records,
+        "total_weight": total_weight,
+        "today_weight": today_weight,
+        "total_weight_del": total_weight_del,
+        "today_weight_del": today_weight_del,
+        "total_pressure": total_pressure,
+        "today_pressure_morning": today_pressure_morning,
+        "today_pressure_evening": today_pressure_evening,
+        "total_pressure_del": total_pressure_del,
+        "today_pressure_del": today_pressure_del,
     }
 
 
@@ -177,6 +216,16 @@ def get_pressure_history_days(user_id: int, days: int) -> list[sqlite3.Row]:
     return rows
 
 
+def pressure_deletions_today(user_id: int) -> int:
+    today = datetime.now().strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM pressure_deletions WHERE user_id = ? AND date LIKE ?",
+            (user_id, f"{today}%"),
+        ).fetchone()
+    return row[0]
+
+
 def delete_last_pressure(user_id: int) -> sqlite3.Row | None:
     with get_conn() as conn:
         row = conn.execute(
@@ -186,5 +235,9 @@ def delete_last_pressure(user_id: int) -> sqlite3.Row | None:
         if row is None:
             return None
         conn.execute("DELETE FROM pressure WHERE id = ?", (row["id"],))
+        conn.execute(
+            "INSERT INTO pressure_deletions (user_id, date) VALUES (?, ?)",
+            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M")),
+        )
         conn.commit()
     return row

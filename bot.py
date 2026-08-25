@@ -69,9 +69,18 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = db.get_stats()
     await update.message.reply_text(
         f"📊 *Статистика бота*\n\n"
-        f"👥 Пользователей: *{s['total_users']}*\n"
-        f"📝 Всего записей: *{s['total_records']}*\n"
-        f"📅 Записей сегодня: *{s['today_records']}*",
+        f"👥 Пользователей: *{s['total_users']}*\n\n"
+        f"⚖️ *Взвешивания:*\n"
+        f"   Всего записей: *{s['total_weight']}*\n"
+        f"   Записей сегодня: *{s['today_weight']}*\n"
+        f"   Удалений всего: *{s['total_weight_del']}*\n"
+        f"   Удалений сегодня: *{s['today_weight_del']}*\n\n"
+        f"🫀 *Давление:*\n"
+        f"   Всего записей: *{s['total_pressure']}*\n"
+        f"   Сегодня утром: *{s['today_pressure_morning']}*\n"
+        f"   Сегодня вечером: *{s['today_pressure_evening']}*\n"
+        f"   Удалений всего: *{s['total_pressure_del']}*\n"
+        f"   Удалений сегодня: *{s['today_pressure_del']}*",
         parse_mode="Markdown",
     )
 
@@ -275,6 +284,13 @@ async def send_pressure_chart(update: Update, user_id: int, days: int = None):
 
 
 async def delete_last_pressure(update: Update, user_id: int):
+    if db.pressure_deletions_today(user_id) >= 6:
+        await update.message.reply_text(
+            "⛔️ Сегодня ты уже удалял измерения давления 6 раз. Лимит исчерпан до завтра.",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
     row = db.delete_last_pressure(user_id)
     if row is None:
         await update.message.reply_text(
@@ -283,9 +299,11 @@ async def delete_last_pressure(update: Update, user_id: int):
         )
         return
 
+    remaining = 6 - db.pressure_deletions_today(user_id)
     pulse_part = f", пульс {row['pulse']}" if row["pulse"] else ""
     await update.message.reply_text(
-        f"🗑 Последняя запись давления удалена: *{row['systolic']}/{row['diastolic']}*{pulse_part}",
+        f"🗑 Последнее измерение давления удалено: *{row['systolic']}/{row['diastolic']}*{pulse_part}\n"
+        f"Осталось удалений сегодня: *{remaining}*",
         parse_mode="Markdown",
         reply_markup=MAIN_KEYBOARD,
     )
