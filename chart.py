@@ -46,25 +46,30 @@ def build_chart(rows) -> io.BytesIO:
     _apply_dark(fig, ax)
 
     color = "#4fc3f7"
+    avg = sum(weights) / len(weights)
+    mn  = min(weights)
+    mx  = max(weights)
+    pad = max((mx - mn) * 0.2, 2.0)
+    ax.set_ylim(bottom=mn - pad, top=mx + pad)
+
     ax.fill_between(dates, weights, alpha=0.15, color=color)
     ax.plot(dates, weights, marker="o", linewidth=2, color=color,
             markersize=5, markerfacecolor=color, markeredgewidth=0)
 
-    if len(rows) <= 25:
-        for d, w in zip(dates, weights):
-            ax.annotate(
-                f"{w:.1f}",
-                (d, w),
-                textcoords="offset points",
-                xytext=(0, 10),
-                ha="center",
-                fontsize=8,
-                color=FG,
-            )
+    # подписываем только ключевые точки: первую, последнюю, минимум, максимум
+    key_indices = {0, len(weights) - 1, weights.index(mn), weights.index(mx)}
+    for i in key_indices:
+        ax.annotate(
+            f"{weights[i]:.1f}",
+            (dates[i], weights[i]),
+            textcoords="offset points",
+            xytext=(0, 10),
+            ha="center",
+            fontsize=9,
+            fontweight="bold",
+            color=FG,
+        )
 
-    avg = sum(weights) / len(weights)
-    mn  = min(weights)
-    mx  = max(weights)
     ax.axhline(avg, color="#78909c", linestyle=":",  linewidth=1.3, label=f"Среднее: {avg:.1f} кг")
     ax.axhline(mn,  color="#66bb6a", linestyle="--", linewidth=1.0, label=f"Минимум: {mn:.1f} кг")
     ax.axhline(mx,  color="#ef5350", linestyle="--", linewidth=1.0, label=f"Максимум: {mx:.1f} кг")
