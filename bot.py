@@ -25,10 +25,10 @@ logging.basicConfig(
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("📊 График"), KeyboardButton("📊 График за 3 месяца")],
-        [KeyboardButton("📋 История"), KeyboardButton("🗑 Удалить последнюю запись")],
-        [KeyboardButton("📈 График давления"), KeyboardButton("📋 История давления")],
-        [KeyboardButton("🗑 Удалить давление")],
+        [KeyboardButton("⚖️ График веса"), KeyboardButton("⚖️ График веса (3 мес.)")],
+        [KeyboardButton("⚖️ История взвешиваний"), KeyboardButton("🗑 Удалить взвешивание")],
+        [KeyboardButton("🫀 График давления"), KeyboardButton("🫀 График давления (7 дн.)")],
+        [KeyboardButton("🫀 История измерений"), KeyboardButton("🗑 Удалить измерение")],
     ],
     resize_keyboard=True,
 )
@@ -80,31 +80,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user_id = update.effective_user.id
 
-    if text == "📊 График":
+    if text == "⚖️ График веса":
         await send_chart(update, user_id)
         return
 
-    if text == "📊 График за 3 месяца":
+    if text == "⚖️ График веса (3 мес.)":
         await send_chart(update, user_id, months=3)
         return
 
-    if text == "📋 История":
+    if text == "⚖️ История взвешиваний":
         await send_history(update, user_id)
         return
 
-    if text == "🗑 Удалить последнюю запись":
+    if text == "🗑 Удалить взвешивание":
         await delete_last(update, user_id)
         return
 
-    if text == "📈 График давления":
+    if text == "🫀 График давления":
         await send_pressure_chart(update, user_id)
         return
 
-    if text == "📋 История давления":
+    if text == "🫀 График давления (7 дн.)":
+        await send_pressure_chart(update, user_id, days=7)
+        return
+
+    if text == "🫀 История измерений":
         await send_pressure_history(update, user_id)
         return
 
-    if text == "🗑 Удалить давление":
+    if text == "🗑 Удалить измерение":
         await delete_last_pressure(update, user_id)
         return
 
@@ -112,6 +116,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pressure = parse_pressure(text)
     if pressure is not None:
         systolic, diastolic, pulse = pressure
+        period = db.get_period()
+        if db.already_recorded_pressure(user_id, period):
+            period_label = "утреннее" if period == "morning" else "вечернее"
+            other_label = "вечернее" if period == "morning" else "утреннее"
+            await update.message.reply_text(
+                f"⚠️ {period_label.capitalize()} давление за сегодня уже записано.\n"
+                f"{other_label.capitalize()} можно записать {'после 15:00' if period == 'morning' else 'с 05:00 завтра'}.",
+                reply_markup=MAIN_KEYBOARD,
+            )
+            return
         period = db.add_pressure(user_id, systolic, diastolic, pulse)
         period_label = "утро" if period == "morning" else "вечер"
         pulse_part = f", пульс *{pulse}*" if pulse else ""
@@ -238,10 +252,16 @@ async def send_pressure_history(update: Update, user_id: int):
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
-async def send_pressure_chart(update: Update, user_id: int):
-    rows = db.get_pressure_history(user_id)
+async def send_pressure_chart(update: Update, user_id: int, days: int = None):
+    if days:
+        rows = db.get_pressure_history_days(user_id, days)
+        caption = f"🫀 Динамика давления за последние {days} дней"
+    else:
+        rows = db.get_pressure_history(user_id)
+        caption = "🫀 Динамика давления за всё время"
+
     if not rows:
-        await update.message.reply_text("Записей давления пока нет.")
+        await update.message.reply_text("Записей давления за этот период нет.")
         return
     if len(rows) < 2:
         await update.message.reply_text(
@@ -251,7 +271,7 @@ async def send_pressure_chart(update: Update, user_id: int):
 
     await update.message.reply_text("Строю график давления… ⏳")
     buf = build_pressure_chart(rows)
-    await update.message.reply_photo(photo=buf, caption="📈 Динамика давления")
+    await update.message.reply_photo(photo=buf, caption=caption)
 
 
 async def delete_last_pressure(update: Update, user_id: int):

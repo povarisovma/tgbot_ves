@@ -166,9 +166,9 @@ def get_pressure_history(user_id: int) -> list[sqlite3.Row]:
     return rows
 
 
-def get_pressure_history_months(user_id: int, months: int) -> list[sqlite3.Row]:
+def get_pressure_history_days(user_id: int, days: int) -> list[sqlite3.Row]:
     from datetime import timedelta
-    since = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%d")
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT systolic, diastolic, pulse, period, date FROM pressure WHERE user_id = ? AND date >= ? ORDER BY id ASC",
