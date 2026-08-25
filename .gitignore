@@ -5,3 +5,5 @@ __pycache__/
 venv/
 .venv/
 .claude/
+generate_image.py
+bot_image.png

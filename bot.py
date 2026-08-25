@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -11,7 +12,7 @@ from telegram.ext import (
 )
 
 import db
-from chart import build_chart
+from chart import build_chart, build_pressure_chart
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -26,9 +27,27 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("📊 График"), KeyboardButton("📊 График за 3 месяца")],
         [KeyboardButton("📋 История"), KeyboardButton("🗑 Удалить последнюю запись")],
+        [KeyboardButton("📈 График давления"), KeyboardButton("📋 История давления")],
+        [KeyboardButton("🗑 Удалить давление")],
     ],
     resize_keyboard=True,
 )
+
+_PRESSURE_RE = re.compile(r'^(\d+)[-/ ](\d+)(?:[-/ ](\d+))?$')
+
+
+def parse_pressure(text: str):
+    m = _PRESSURE_RE.match(text.strip())
+    if not m:
+        return None
+    systolic = int(m.group(1))
+    diastolic = int(m.group(2))
+    pulse = int(m.group(3)) if m.group(3) else None
+    if not (60 <= systolic <= 250 and 40 <= diastolic <= 150):
+        return None
+    if pulse is not None and not (30 <= pulse <= 220):
+        return None
+    return systolic, diastolic, pulse
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -77,12 +96,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await delete_last(update, user_id)
         return
 
-    # пробуем распознать число
+    if text == "📈 График давления":
+        await send_pressure_chart(update, user_id)
+        return
+
+    if text == "📋 История давления":
+        await send_pressure_history(update, user_id)
+        return
+
+    if text == "🗑 Удалить давление":
+        await delete_last_pressure(update, user_id)
+        return
+
+    # пробуем распознать давление (два или три числа через /, - или пробел)
+    pressure = parse_pressure(text)
+    if pressure is not None:
+        systolic, diastolic, pulse = pressure
+        period = db.add_pressure(user_id, systolic, diastolic, pulse)
+        period_label = "утро" if period == "morning" else "вечер"
+        pulse_part = f", пульс *{pulse}*" if pulse else ""
+        await update.message.reply_text(
+            f"✅ Записал давление ({period_label}): *{systolic}/{diastolic}*{pulse_part}",
+            parse_mode="Markdown",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
+    # пробуем распознать вес
     try:
         weight = float(text.replace(",", "."))
     except ValueError:
         await update.message.reply_text(
-            "Не понимаю 🤔 Отправь число, например: *75.3*",
+            "Не понимаю 🤔\n"
+            "• Вес: *75.3*\n"
+            "• Давление: *120/80* или *120/80/70* (с пульсом)",
             parse_mode="Markdown",
         )
         return
@@ -100,7 +147,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     db.add_weight(user_id, weight)
     await update.message.reply_text(
-        f"✅ Записал: *{weight:.1f} кг*",
+        f"✅ Записал вес: *{weight:.1f} кг*",
         parse_mode="Markdown",
         reply_markup=MAIN_KEYBOARD,
     )
@@ -168,6 +215,60 @@ async def send_chart(update: Update, user_id: int, months: int = None):
     await update.message.reply_text("Строю график… ⏳")
     buf = build_chart(rows)
     await update.message.reply_photo(photo=buf, caption=caption)
+
+
+async def send_pressure_history(update: Update, user_id: int):
+    rows = db.get_pressure_history(user_id)
+    if not rows:
+        await update.message.reply_text("Записей давления пока нет.")
+        return
+
+    period_labels = {"morning": "утро", "evening": "вечер"}
+    lines = []
+    for r in rows:
+        date = r["date"][:10]
+        period = period_labels.get(r["period"], r["period"])
+        pulse_part = f", пульс {r['pulse']}" if r["pulse"] else ""
+        lines.append(f"{date} ({period})  —  {r['systolic']}/{r['diastolic']}{pulse_part}")
+
+    text = "📋 *История давления:*\n\n" + "\n".join(lines)
+    if len(text) > 4096:
+        text = text[-4093:] + "..."
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def send_pressure_chart(update: Update, user_id: int):
+    rows = db.get_pressure_history(user_id)
+    if not rows:
+        await update.message.reply_text("Записей давления пока нет.")
+        return
+    if len(rows) < 2:
+        await update.message.reply_text(
+            "Нужно хотя бы 2 записи, чтобы построить график."
+        )
+        return
+
+    await update.message.reply_text("Строю график давления… ⏳")
+    buf = build_pressure_chart(rows)
+    await update.message.reply_photo(photo=buf, caption="📈 Динамика давления")
+
+
+async def delete_last_pressure(update: Update, user_id: int):
+    row = db.delete_last_pressure(user_id)
+    if row is None:
+        await update.message.reply_text(
+            "Записей давления нет — нечего удалять.",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
+    pulse_part = f", пульс {row['pulse']}" if row["pulse"] else ""
+    await update.message.reply_text(
+        f"🗑 Последняя запись давления удалена: *{row['systolic']}/{row['diastolic']}*{pulse_part}",
+        parse_mode="Markdown",
+        reply_markup=MAIN_KEYBOARD,
+    )
 
 
 def main():

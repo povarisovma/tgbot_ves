@@ -10,6 +10,13 @@ def get_conn():
     return conn
 
 
+def get_period() -> str:
+    hour = datetime.now().hour
+    if 5 <= hour < 15:
+        return "morning"
+    return "evening"
+
+
 def init_db():
     with get_conn() as conn:
         conn.execute("""
@@ -25,6 +32,17 @@ def init_db():
                 id      INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 date    TEXT    NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pressure (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id   INTEGER NOT NULL,
+                systolic  INTEGER NOT NULL,
+                diastolic INTEGER NOT NULL,
+                pulse     INTEGER,
+                period    TEXT    NOT NULL,
+                date      TEXT    NOT NULL
             )
         """)
         conn.commit()
@@ -115,3 +133,58 @@ def get_history_months(user_id: int, months: int) -> list[sqlite3.Row]:
             (user_id, since),
         ).fetchall()
     return rows
+
+
+def already_recorded_pressure(user_id: int, period: str) -> bool:
+    today = datetime.now().strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM pressure WHERE user_id = ? AND period = ? AND date LIKE ? LIMIT 1",
+            (user_id, period, f"{today}%"),
+        ).fetchone()
+    return row is not None
+
+
+def add_pressure(user_id: int, systolic: int, diastolic: int, pulse: int | None) -> str:
+    period = get_period()
+    date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO pressure (user_id, systolic, diastolic, pulse, period, date) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, systolic, diastolic, pulse, period, date),
+        )
+        conn.commit()
+    return period
+
+
+def get_pressure_history(user_id: int) -> list[sqlite3.Row]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT systolic, diastolic, pulse, period, date FROM pressure WHERE user_id = ? ORDER BY id ASC",
+            (user_id,),
+        ).fetchall()
+    return rows
+
+
+def get_pressure_history_months(user_id: int, months: int) -> list[sqlite3.Row]:
+    from datetime import timedelta
+    since = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT systolic, diastolic, pulse, period, date FROM pressure WHERE user_id = ? AND date >= ? ORDER BY id ASC",
+            (user_id, since),
+        ).fetchall()
+    return rows
+
+
+def delete_last_pressure(user_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, systolic, diastolic, pulse FROM pressure WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        conn.execute("DELETE FROM pressure WHERE id = ?", (row["id"],))
+        conn.commit()
+    return row
