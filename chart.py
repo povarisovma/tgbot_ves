@@ -57,14 +57,18 @@ def build_chart(rows) -> io.BytesIO:
             markersize=5, markerfacecolor=color, markeredgewidth=0)
 
     # подписываем только ключевые точки: первую, последнюю, минимум, максимум
-    key_indices = {0, len(weights) - 1, weights.index(mn), weights.index(mx)}
+    idx_mn = weights.index(mn)
+    idx_mx = weights.index(mx)
+    key_indices = {0, len(weights) - 1, idx_mn, idx_mx}
     for i in key_indices:
+        below = (i == idx_mn)
         ax.annotate(
             f"{weights[i]:.1f}",
             (dates[i], weights[i]),
             textcoords="offset points",
-            xytext=(0, 10),
+            xytext=(0, -14 if below else 10),
             ha="center",
+            va="top" if below else "bottom",
             fontsize=9,
             fontweight="bold",
             color=FG,
