@@ -5,6 +5,26 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
 
+BG      = "#1a1a2e"
+FG      = "#e0e0e0"
+GRID    = "#2a2a4a"
+SUBGRID = "#252540"
+
+
+def _apply_dark(fig, *axes):
+    fig.patch.set_facecolor(BG)
+    for ax in axes:
+        ax.set_facecolor(BG)
+        ax.tick_params(colors=FG, labelsize=9)
+        ax.yaxis.label.set_color(FG)
+        ax.xaxis.label.set_color(FG)
+        ax.title.set_color(FG)
+        ax.grid(True, linestyle="--", alpha=0.25, color=GRID)
+        for spine in ["top", "right"]:
+            ax.spines[spine].set_visible(False)
+        for spine in ["left", "bottom"]:
+            ax.spines[spine].set_color(GRID)
+
 
 def _parse_dates(rows) -> list[datetime]:
     dates = []
@@ -22,37 +42,39 @@ def build_chart(rows) -> io.BytesIO:
     dates = _parse_dates(rows)
     weights = [r["weight"] for r in rows]
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(dates, weights, marker="o", linewidth=2, color="#4A90D9", markersize=6)
+    fig, ax = plt.subplots(figsize=(14, 6))
+    _apply_dark(fig, ax)
 
-    # подписи точек
-    for d, w in zip(dates, weights):
-        ax.annotate(
-            f"{w:.1f}",
-            (d, w),
-            textcoords="offset points",
-            xytext=(0, 10),
-            ha="center",
-            fontsize=8,
-            color="#333333",
-        )
+    color = "#4fc3f7"
+    ax.fill_between(dates, weights, alpha=0.15, color=color)
+    ax.plot(dates, weights, marker="o", linewidth=2, color=color,
+            markersize=5, markerfacecolor=color, markeredgewidth=0)
 
+    if len(rows) <= 25:
+        for d, w in zip(dates, weights):
+            ax.annotate(
+                f"{w:.1f}",
+                (d, w),
+                textcoords="offset points",
+                xytext=(0, 10),
+                ha="center",
+                fontsize=8,
+                color=FG,
+            )
+
+    avg = sum(weights) / len(weights)
+    ax.axhline(avg, color="#78909c", linestyle=":", linewidth=1.3,
+               label=f"Среднее: {avg:.1f} кг")
+
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d.%m.%y"))
     fig.autofmt_xdate(rotation=45)
 
-    ax.set_title("Динамика веса", fontsize=14, pad=12)
+    ax.set_title("Динамика веса", fontsize=14, pad=14)
     ax.set_ylabel("Вес (кг)")
-    ax.set_xlabel("Дата")
-    ax.grid(True, linestyle="--", alpha=0.5)
-
-    # горизонтальная линия — среднее
-    avg = sum(weights) / len(weights)
-    ax.axhline(avg, color="gray", linestyle=":", linewidth=1.2,
-               label=f"Среднее: {avg:.1f} кг")
-    ax.legend()
+    legend = ax.legend(facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9)
 
     plt.tight_layout()
-
     buf = io.BytesIO()
     plt.savefig(buf, format="png", dpi=150)
     plt.close(fig)
@@ -61,51 +83,60 @@ def build_chart(rows) -> io.BytesIO:
 
 
 def build_pressure_chart(rows) -> io.BytesIO:
-    morning = [r for r in rows if r["period"] == "morning"]
-    evening = [r for r in rows if r["period"] == "evening"]
+    morning   = [r for r in rows if r["period"] == "morning"]
+    evening   = [r for r in rows if r["period"] == "evening"]
     pulse_rows = [r for r in rows if r["pulse"] is not None]
-    has_pulse = bool(pulse_rows)
+    has_pulse  = bool(pulse_rows)
 
     if has_pulse:
         fig, (ax_p, ax_pulse) = plt.subplots(
-            2, 1, figsize=(12, 8), sharex=True,
+            2, 1, figsize=(14, 8), sharex=True,
             gridspec_kw={"height_ratios": [2, 1]}
         )
+        _apply_dark(fig, ax_p, ax_pulse)
     else:
-        fig, ax_p = plt.subplots(figsize=(12, 5))
+        fig, ax_p = plt.subplots(figsize=(14, 6))
+        _apply_dark(fig, ax_p)
         ax_pulse = None
 
     if morning:
         m_dates = _parse_dates(morning)
-        ax_p.plot(m_dates, [r["systolic"] for r in morning],
-                  marker="o", color="#E74C3C", linewidth=2, label="Утро верхнее")
-        ax_p.plot(m_dates, [r["diastolic"] for r in morning],
-                  marker="o", color="#F1948A", linewidth=2, linestyle="--", label="Утро нижнее")
+        m_sys = [r["systolic"] for r in morning]
+        m_dia = [r["diastolic"] for r in morning]
+        ax_p.fill_between(m_dates, m_sys, m_dia, alpha=0.08, color="#ef5350")
+        ax_p.plot(m_dates, m_sys, marker="o", color="#ef5350", linewidth=2,
+                  markersize=5, markeredgewidth=0, label="Утро верхнее")
+        ax_p.plot(m_dates, m_dia, marker="o", color="#ef9a9a", linewidth=2,
+                  markersize=5, markeredgewidth=0, linestyle="--", label="Утро нижнее")
 
     if evening:
         e_dates = _parse_dates(evening)
-        ax_p.plot(e_dates, [r["systolic"] for r in evening],
-                  marker="s", color="#2E86C1", linewidth=2, label="Вечер верхнее")
-        ax_p.plot(e_dates, [r["diastolic"] for r in evening],
-                  marker="s", color="#85C1E9", linewidth=2, linestyle="--", label="Вечер нижнее")
+        e_sys = [r["systolic"] for r in evening]
+        e_dia = [r["diastolic"] for r in evening]
+        ax_p.fill_between(e_dates, e_sys, e_dia, alpha=0.08, color="#42a5f5")
+        ax_p.plot(e_dates, e_sys, marker="s", color="#42a5f5", linewidth=2,
+                  markersize=5, markeredgewidth=0, label="Вечер верхнее")
+        ax_p.plot(e_dates, e_dia, marker="s", color="#90caf9", linewidth=2,
+                  markersize=5, markeredgewidth=0, linestyle="--", label="Вечер нижнее")
 
-    ax_p.set_title("Динамика давления", fontsize=14, pad=12)
+    ax_p.set_title("Динамика давления", fontsize=14, pad=14)
     ax_p.set_ylabel("Давление (мм рт. ст.)")
-    ax_p.grid(True, linestyle="--", alpha=0.5)
-    ax_p.legend()
+    ax_p.legend(facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9, ncol=2)
 
     if has_pulse:
         p_dates = _parse_dates(pulse_rows)
-        ax_pulse.plot(p_dates, [r["pulse"] for r in pulse_rows],
-                      marker="^", color="#27AE60", linewidth=2, label="Пульс")
+        pulses  = [r["pulse"] for r in pulse_rows]
+        ax_pulse.fill_between(p_dates, pulses, alpha=0.15, color="#66bb6a")
+        ax_pulse.plot(p_dates, pulses, marker="^", color="#66bb6a", linewidth=2,
+                      markersize=5, markeredgewidth=0, label="Пульс")
         ax_pulse.set_ylabel("Пульс (уд/мин)")
-        ax_pulse.grid(True, linestyle="--", alpha=0.5)
-        ax_pulse.legend()
+        ax_pulse.legend(facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9)
 
+    ax_p.xaxis.set_major_locator(mdates.AutoDateLocator())
     ax_p.xaxis.set_major_formatter(mdates.DateFormatter("%d.%m.%y"))
     fig.autofmt_xdate(rotation=45)
-    plt.tight_layout()
 
+    plt.tight_layout()
     buf = io.BytesIO()
     plt.savefig(buf, format="png", dpi=150)
     plt.close(fig)
