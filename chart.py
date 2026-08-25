@@ -63,8 +63,11 @@ def build_chart(rows) -> io.BytesIO:
             )
 
     avg = sum(weights) / len(weights)
-    ax.axhline(avg, color="#78909c", linestyle=":", linewidth=1.3,
-               label=f"Среднее: {avg:.1f} кг")
+    mn  = min(weights)
+    mx  = max(weights)
+    ax.axhline(avg, color="#78909c", linestyle=":",  linewidth=1.3, label=f"Среднее: {avg:.1f} кг")
+    ax.axhline(mn,  color="#66bb6a", linestyle="--", linewidth=1.0, label=f"Минимум: {mn:.1f} кг")
+    ax.axhline(mx,  color="#ef5350", linestyle="--", linewidth=1.0, label=f"Максимум: {mx:.1f} кг")
 
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d.%m.%y"))
