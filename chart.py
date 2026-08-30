@@ -4,6 +4,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.lines import Line2D
+from matplotlib.transforms import blended_transform_factory
 from datetime import datetime
 
 BG      = "#1a1a2e"
@@ -118,14 +119,26 @@ def build_pressure_chart(rows) -> io.BytesIO:
     dia_vals = [r["diastolic"] for r in rows]
     point_colors = [PERIOD_COLOR.get(r["period"], "#9e9e9e") for r in rows]
 
-    ax_p.plot(dates, sys_vals, color=FG, linewidth=1.3, alpha=0.4, zorder=1)
-    ax_p.plot(dates, dia_vals, color=FG, linewidth=1.3, alpha=0.4, linestyle="--", zorder=1)
+    ax_p.plot(dates, sys_vals, color=FG, linewidth=2.2, alpha=0.55, zorder=1)
+    ax_p.plot(dates, dia_vals, color=FG, linewidth=2.2, alpha=0.55, zorder=1)
     ax_p.scatter(dates, sys_vals, c=point_colors, marker="o", s=45, zorder=3, edgecolors="none")
     ax_p.scatter(dates, dia_vals, c=point_colors, marker="^", s=40, zorder=3, edgecolors="none")
 
+    # среднее/мин/макс отдельно для верхнего и нижнего давления — тонкие
+    # пунктирные линии на всю ширину графика, значение подписано у правого края
+    REF = {"avg": ("#b0bec5", ":"), "min": ("#4db6ac", "--"), "max": ("#ffb74d", "--")}
+    trans = blended_transform_factory(ax_p.transAxes, ax_p.transData)
+    for series in (sys_vals, dia_vals):
+        stats = {"avg": sum(series) / len(series), "min": min(series), "max": max(series)}
+        for key, value in stats.items():
+            color, linestyle = REF[key]
+            ax_p.axhline(value, color=color, linestyle=linestyle, linewidth=1, alpha=0.6, zorder=0)
+            ax_p.text(1.012, value, f"{value:.0f}", transform=trans, color=color,
+                      fontsize=8, va="center", ha="left")
+
     legend_handles = [
-        Line2D([0], [0], color=FG, linewidth=1.3, label="Верхнее"),
-        Line2D([0], [0], color=FG, linewidth=1.3, linestyle="--", label="Нижнее"),
+        Line2D([0], [0], marker="o", color=FG, linewidth=2.2, alpha=0.55, markersize=6, label="Верхнее"),
+        Line2D([0], [0], marker="^", color=FG, linewidth=2.2, alpha=0.55, markersize=6, label="Нижнее"),
         Line2D([0], [0], marker="o", linestyle="none", markerfacecolor=PERIOD_COLOR["morning"],
                markeredgewidth=0, markersize=8, label="Утро"),
         Line2D([0], [0], marker="o", linestyle="none", markerfacecolor=PERIOD_COLOR["evening"],
@@ -150,6 +163,7 @@ def build_pressure_chart(rows) -> io.BytesIO:
     fig.autofmt_xdate(rotation=45)
 
     plt.tight_layout()
+    fig.subplots_adjust(right=0.92)
     buf = io.BytesIO()
     plt.savefig(buf, format="png", dpi=150)
     plt.close(fig)
