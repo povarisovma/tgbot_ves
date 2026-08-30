@@ -115,7 +115,6 @@ def build_pressure_chart(rows) -> io.BytesIO:
         m_dates = _parse_dates(morning)
         m_sys = [r["systolic"] for r in morning]
         m_dia = [r["diastolic"] for r in morning]
-        ax_p.fill_between(m_dates, m_sys, m_dia, alpha=0.08, color="#ef5350")
         ax_p.plot(m_dates, m_sys, marker="o", color="#ef5350", linewidth=2,
                   markersize=5, markeredgewidth=0, label="Утро верхнее")
         ax_p.plot(m_dates, m_dia, marker="o", color="#ef9a9a", linewidth=2,
@@ -125,7 +124,6 @@ def build_pressure_chart(rows) -> io.BytesIO:
         e_dates = _parse_dates(evening)
         e_sys = [r["systolic"] for r in evening]
         e_dia = [r["diastolic"] for r in evening]
-        ax_p.fill_between(e_dates, e_sys, e_dia, alpha=0.08, color="#42a5f5")
         ax_p.plot(e_dates, e_sys, marker="s", color="#42a5f5", linewidth=2,
                   markersize=5, markeredgewidth=0, label="Вечер верхнее")
         ax_p.plot(e_dates, e_dia, marker="s", color="#90caf9", linewidth=2,
@@ -133,7 +131,8 @@ def build_pressure_chart(rows) -> io.BytesIO:
 
     ax_p.set_title("Динамика давления", fontsize=14, pad=14)
     ax_p.set_ylabel("Давление (мм рт. ст.)")
-    ax_p.legend(facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9, ncol=2)
+    ax_p.legend(facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9, ncol=4,
+                loc="upper center", bbox_to_anchor=(0.5, 1.18))
 
     if has_pulse:
         p_dates = _parse_dates(pulse_rows)

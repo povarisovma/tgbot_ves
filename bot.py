@@ -254,9 +254,10 @@ async def send_pressure_history(update: Update, user_id: int):
     lines = []
     for r in rows:
         date = r["date"][:10]
+        time = r["date"][11:16]
         period = period_labels.get(r["period"], r["period"])
         pulse_part = f", пульс {r['pulse']}" if r["pulse"] else ""
-        lines.append(f"{date} ({period})  —  {r['systolic']}/{r['diastolic']}{pulse_part}")
+        lines.append(f"{date} {time} ({period})  —  {r['systolic']}/{r['diastolic']}{pulse_part}")
 
     text = "📋 *История давления:*\n\n" + "\n".join(lines)
     if len(text) > 4096:
