@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.lines import Line2D
 from datetime import datetime
 
 BG      = "#1a1a2e"
@@ -94,9 +95,10 @@ def build_chart(rows) -> io.BytesIO:
     return buf
 
 
+PERIOD_COLOR = {"morning": "#ef5350", "evening": "#42a5f5"}
+
+
 def build_pressure_chart(rows) -> io.BytesIO:
-    morning   = [r for r in rows if r["period"] == "morning"]
-    evening   = [r for r in rows if r["period"] == "evening"]
     pulse_rows = [r for r in rows if r["pulse"] is not None]
     has_pulse  = bool(pulse_rows)
 
@@ -111,27 +113,27 @@ def build_pressure_chart(rows) -> io.BytesIO:
         _apply_dark(fig, ax_p)
         ax_pulse = None
 
-    if morning:
-        m_dates = _parse_dates(morning)
-        m_sys = [r["systolic"] for r in morning]
-        m_dia = [r["diastolic"] for r in morning]
-        ax_p.plot(m_dates, m_sys, marker="o", color="#ef5350", linewidth=2,
-                  markersize=5, markeredgewidth=0, label="Утро верхнее")
-        ax_p.plot(m_dates, m_dia, marker="o", color="#ef9a9a", linewidth=2,
-                  markersize=5, markeredgewidth=0, linestyle="--", label="Утро нижнее")
+    dates = _parse_dates(rows)
+    sys_vals = [r["systolic"] for r in rows]
+    dia_vals = [r["diastolic"] for r in rows]
+    point_colors = [PERIOD_COLOR.get(r["period"], "#9e9e9e") for r in rows]
 
-    if evening:
-        e_dates = _parse_dates(evening)
-        e_sys = [r["systolic"] for r in evening]
-        e_dia = [r["diastolic"] for r in evening]
-        ax_p.plot(e_dates, e_sys, marker="s", color="#42a5f5", linewidth=2,
-                  markersize=5, markeredgewidth=0, label="Вечер верхнее")
-        ax_p.plot(e_dates, e_dia, marker="s", color="#90caf9", linewidth=2,
-                  markersize=5, markeredgewidth=0, linestyle="--", label="Вечер нижнее")
+    ax_p.plot(dates, sys_vals, color=FG, linewidth=1.3, alpha=0.4, zorder=1)
+    ax_p.plot(dates, dia_vals, color=FG, linewidth=1.3, alpha=0.4, linestyle="--", zorder=1)
+    ax_p.scatter(dates, sys_vals, c=point_colors, marker="o", s=45, zorder=3, edgecolors="none")
+    ax_p.scatter(dates, dia_vals, c=point_colors, marker="^", s=40, zorder=3, edgecolors="none")
 
+    legend_handles = [
+        Line2D([0], [0], color=FG, linewidth=1.3, label="Верхнее"),
+        Line2D([0], [0], color=FG, linewidth=1.3, linestyle="--", label="Нижнее"),
+        Line2D([0], [0], marker="o", linestyle="none", markerfacecolor=PERIOD_COLOR["morning"],
+               markeredgewidth=0, markersize=8, label="Утро"),
+        Line2D([0], [0], marker="o", linestyle="none", markerfacecolor=PERIOD_COLOR["evening"],
+               markeredgewidth=0, markersize=8, label="Вечер"),
+    ]
     ax_p.set_title("Динамика давления", fontsize=14, pad=14)
     ax_p.set_ylabel("Давление (мм рт. ст.)")
-    ax_p.legend(facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9, ncol=4,
+    ax_p.legend(handles=legend_handles, facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9, ncol=4,
                 loc="upper center", bbox_to_anchor=(0.5, 1.18))
 
     if has_pulse:
