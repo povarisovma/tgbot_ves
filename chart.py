@@ -97,6 +97,19 @@ def build_chart(rows) -> io.BytesIO:
 
 
 PERIOD_COLOR = {"morning": "#ef5350", "evening": "#42a5f5"}
+REF_STYLE = {"avg": ("#b0bec5", ":"), "min": ("#4db6ac", "--"), "max": ("#ffb74d", "--")}
+
+
+def _add_ref_lines(ax, series):
+    """Полупрозрачные пунктирные линии среднего/мин/макс на всю ширину графика,
+    со значением, подписанным у правого края."""
+    trans = blended_transform_factory(ax.transAxes, ax.transData)
+    stats = {"avg": sum(series) / len(series), "min": min(series), "max": max(series)}
+    for key, value in stats.items():
+        color, linestyle = REF_STYLE[key]
+        ax.axhline(value, color=color, linestyle=linestyle, linewidth=1, alpha=0.6, zorder=0)
+        ax.text(1.012, value, f"{value:.0f}", transform=trans, color=color,
+                fontsize=8, va="center", ha="left")
 
 
 def build_pressure_chart(rows) -> io.BytesIO:
@@ -124,17 +137,8 @@ def build_pressure_chart(rows) -> io.BytesIO:
     ax_p.scatter(dates, sys_vals, c=point_colors, marker="o", s=45, zorder=3, edgecolors="none")
     ax_p.scatter(dates, dia_vals, c=point_colors, marker="^", s=40, zorder=3, edgecolors="none")
 
-    # среднее/мин/макс отдельно для верхнего и нижнего давления — тонкие
-    # пунктирные линии на всю ширину графика, значение подписано у правого края
-    REF = {"avg": ("#b0bec5", ":"), "min": ("#4db6ac", "--"), "max": ("#ffb74d", "--")}
-    trans = blended_transform_factory(ax_p.transAxes, ax_p.transData)
-    for series in (sys_vals, dia_vals):
-        stats = {"avg": sum(series) / len(series), "min": min(series), "max": max(series)}
-        for key, value in stats.items():
-            color, linestyle = REF[key]
-            ax_p.axhline(value, color=color, linestyle=linestyle, linewidth=1, alpha=0.6, zorder=0)
-            ax_p.text(1.012, value, f"{value:.0f}", transform=trans, color=color,
-                      fontsize=8, va="center", ha="left")
+    _add_ref_lines(ax_p, sys_vals)
+    _add_ref_lines(ax_p, dia_vals)
 
     legend_handles = [
         Line2D([0], [0], marker="o", color=FG, linewidth=2.2, alpha=0.55, markersize=6, label="Верхнее"),
@@ -152,9 +156,12 @@ def build_pressure_chart(rows) -> io.BytesIO:
     if has_pulse:
         p_dates = _parse_dates(pulse_rows)
         pulses  = [r["pulse"] for r in pulse_rows]
-        ax_pulse.fill_between(p_dates, pulses, alpha=0.15, color="#66bb6a")
+        mn_p, mx_p = min(pulses), max(pulses)
+        ax_pulse.set_ylim(bottom=mn_p - 10, top=mx_p + 10)
+        ax_pulse.fill_between(p_dates, pulses, mn_p - 10, alpha=0.15, color="#66bb6a")
         ax_pulse.plot(p_dates, pulses, marker="^", color="#66bb6a", linewidth=2,
                       markersize=5, markeredgewidth=0, label="Пульс")
+        _add_ref_lines(ax_pulse, pulses)
         ax_pulse.set_ylabel("Пульс (уд/мин)")
         ax_pulse.legend(facecolor=BG, edgecolor=GRID, labelcolor=FG, fontsize=9)
 
